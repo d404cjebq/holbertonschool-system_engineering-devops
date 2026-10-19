@@ -1,0 +1,89 @@
+Diagram: <PASTE YOUR IMAGE LINK HERE (imgur, etc.)>
+
+# 3. Scale up
+
+Website: www.foobar.com
+The `www` record (A record) points to the virtual IP (VIP) shared by the two
+load balancers.
+
+## Infrastructure
+
+- 1 cluster of 2 load balancers (HAProxy) on Server 1 and Server 2
+- 1 server (Server 3) for the web server (Nginx)
+- 1 server (Server 4) for the application server and the code base
+- 1 server (Server 5) for the database (MySQL)
+
+Every component (load balancer, web server, application server, database)
+has its own server. The firewalls, the SSL certificate and the monitoring
+clients of the previous design can still be used on these servers.
+
+## What happens when a user visits www.foobar.com
+
+1. The browser asks the DNS for the IP of www.foobar.com and gets the virtual
+   IP of the load balancer cluster.
+2. The request reaches the active HAProxy, which forwards it to the web
+   server.
+3. Nginx (Server 3) serves static files itself, or forwards the request to
+   the application server.
+4. The application server (Server 4) runs the code base and queries the
+   database when it needs data.
+5. The database server (Server 5) answers the queries.
+6. The response goes back through the application server, the web server and
+   the load balancer to the user.
+
+## Why each additional element is added
+
+- **Second load balancer (HAProxy cluster):** in the previous design, the
+  load balancer was a single point of failure: if it failed, the whole
+  website was unreachable. With a second HAProxy configured as a cluster with
+  the first one, if one load balancer fails the other one takes over, so the
+  entry point of the infrastructure is always available. It also lets us do
+  maintenance on a load balancer without downtime.
+- **Separate server for the web server (Nginx):** the web server receives
+  all the requests, handles the connections and serves the static files. On
+  its own server, it uses its own CPU, memory and network, and we can add more
+  web servers behind the load balancers when there is more traffic.
+- **Separate server for the application server and the code base:** running
+  the code is the part that uses the most CPU and memory. On its own server it
+  does not compete with the web server or the database, and it can be scaled
+  (more application servers) and updated (new code deployed) without touching
+  the other components.
+- **Separate server for the database:** the database needs a lot of memory
+  and fast disks, and it holds the most important asset: the data. On its own
+  server it can be tuned, secured (only the application server can reach it),
+  backed up and scaled independently (for example by adding a replica).
+
+In short, splitting the components gives each one its own resources, allows
+us to scale and tune each one independently, isolates the failures and the
+security problems of a component from the others, and makes the
+infrastructure easier to maintain.
+
+## How the load balancer cluster works
+
+The two HAProxy servers have the same configuration and use a cluster tool
+(for example Keepalived or Heartbeat) that shares one virtual IP (VIP) between
+them. The DNS record points to this VIP.
+
+- In an **Active-Passive** setup (the one in the diagram), the active node
+  owns the VIP and handles all the traffic. The passive node checks the active
+  one all the time (heartbeat). If the active node stops answering, the
+  passive node takes the VIP and starts handling the traffic automatically.
+- In an **Active-Active** setup, both nodes handle traffic at the same time
+  (for example with two VIPs or DNS with two IPs), and if one fails the other
+  one takes all the traffic.
+
+## Application server vs web server
+
+- The **web server** (Nginx) handles the HTTP requests of the clients and
+  serves static content (HTML, images, CSS, JavaScript). It forwards the
+  dynamic requests to the application server.
+- The **application server** runs the code of the website (the business
+  logic), talks to the database and generates the dynamic content that the web
+  server sends back to the user.
+
+## Issues that remain
+
+- The web server, the application server and the database are each on a
+  single server, so each of them is still a single point of failure.
+- There is only one database server, so there is no copy of the data if it
+  fails (a Primary-Replica setup would solve this).

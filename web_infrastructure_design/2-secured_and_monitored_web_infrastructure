@@ -1,0 +1,31 @@
+Diagram: <PASTE YOUR IMAGE LINK HERE (imgur, etc.)>
+
+# 2. Secured and monitored web infrastructure
+
+Website: www.foobar.com (served over HTTPS)
+The `www` record (A record) points to the IP of the load balancer.
+
+## Infrastructure
+
+- 3 servers:
+  - 1 load balancer server: firewall, HAProxy, SSL certificate for
+    www.foobar.com, monitoring client
+  - 2 identical application servers (Server 1 and Server 2), each with:
+    firewall, web server (Nginx), application server, code base, MySQL
+    database, monitoring client
+- 3 firewalls (one per server)
+- 1 SSL certificate (www.foobar.com), installed on the load balancer
+- 3 monitoring clients (one per server), sending data to a monitoring
+  service (for example Sumo Logic)
+- The MySQL database of Server 1 is the Primary node, the one of Server 2 is
+  the Replica node.
+
+## What happens when a user visits https://www.foobar.com
+
+1. The browser asks the DNS for the IP of www.foobar.com and gets the IP of
+   the load balancer.
+2. The browser opens an encrypted HTTPS connection to the load balancer. The
+   firewall of the load balancer server only lets ports 80 and 443 through.
+3. HAProxy uses the SSL certificate to decrypt the request, then chooses a
+   server (Round Robin) and forwards it to that server through its firewall.
+4.
